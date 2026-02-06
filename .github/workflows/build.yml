@@ -1,0 +1,55 @@
+name: A21s Final ROM Builder
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Cleanup Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+
+      - name: Prepare Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc build-essential zip curl git wget python3
+          git config --global user.name "ABD99897"
+          git config --global user.email "test@test.com"
+
+      - name: Install Repo
+        run: |
+          mkdir ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          sudo ln -sf ~/bin/repo /usr/bin/repo
+
+      - name: Sync Source
+        run: |
+          mkdir ~/rom
+          cd ~/rom
+          repo init -u https://github.com/DerpFest-AOSP/manifest -b 13
+          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+
+      - name: Sync Device Tree
+        run: |
+          cd ~/rom
+          git clone https://github.com/TDD788/A21s-DevTree device/samsung/a21s
+
+      - name: Start Building
+        run: |
+          cd ~/rom
+          . build/envsetup.sh
+          lunch derp_a21s-userdebug
+          mka bacon -j$(nproc --all)
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: ROM-Result
+          path: ~/rom/out/target/product/a21s/*.zip
